@@ -5,6 +5,7 @@ using System.Text;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
 using System.Text.Json;
+using Newtonsoft.Json;
 
 namespace Receive
 {
@@ -16,25 +17,30 @@ namespace Receive
         using(var connection = factory.CreateConnection())
         using(var channel = connection.CreateModel())
         {
+                //channel.ExchangeDeclare(exchange: "pipes", type: ExchangeType.Fanout);
+                channel.ExchangeDeclare("pipes_direct", type: "direct");
+                var queueName = channel.QueueDeclare().QueueName;
+                //channel.QueueBind(queue: queueName,
+                //                  exchange: "pipes",
+                //                  routingKey: "");
+                channel.QueueBind(queue: queueName,
+                               exchange: "pipes_direct",
+                               routingKey: "both");
                 List<RequestQ> lstrequ = new List<RequestQ>();
-                channel.QueueDeclare(queue: "hello1",
-                                 durable: true,
-                                 exclusive: false,
-                                 autoDelete: false,
-                                 arguments: null);
-                channel.BasicQos(prefetchSize: 0, prefetchCount: 1, global: false);
+                //channel.BasicQos(prefetchSize: 0, prefetchCount: 1, global: false);
                 var consumer = new EventingBasicConsumer(channel);
             consumer.Received += (model, ea) =>
             {
                 var body = ea.Body.ToArray();
                 var message = Encoding.UTF8.GetString(body);
-                lstrequ = JsonSerializer.Deserialize<List<RequestQ>>(message);
+             
+                lstrequ = JsonConvert.DeserializeObject<List<RequestQ>>(message);
+                //JsonSerializer.Deserialize<List<RequestQ>>();
                 Console.WriteLine(" [x] Received {0}", message);
-                channel.BasicAck(deliveryTag: 1, multiple: true);
+                //channel.BasicAck(deliveryTag: 1, multiple: true);
             };
-            channel.BasicConsume(queue: "hello1",
-                                 autoAck: false,
-                                 consumerTag : "receiver",
+            channel.BasicConsume(queue: queueName,
+                                 autoAck: true,
                                  consumer: consumer);
 
             Console.WriteLine(" Press [enter] to exit.");
